@@ -309,7 +309,7 @@ const fEfw=el("path",{d:"M540 130 H390 M540 330 H390",class:"flow"},M);
 el("rect",{x:60,y:130,width:90,height:180,rx:40,class:"vessel"},M);
 const core=el("rect",{x:80,y:200,width:50,height:80,fill:"#c96b2c",rx:4},M);
 const coreGlow=el("rect",{x:80,y:200,width:50,height:80,fill:"#ff3b2f",rx:4,opacity:0},M);
-mt(105,325,"REACTOR","middle");mt(105,338,"no water-level gauge","middle",9);
+mt(98,325,"REACTOR");mt(98,338,"no water-level gauge","start",9);
 // pressurizer
 el("rect",{x:180,y:40,width:40,height:80,rx:16,class:"vessel"},M);
 const pzrFill=el("rect",{x:183,y:60,width:34,height:57,fill:"#2a7bb8",rx:12},M);
@@ -335,7 +335,7 @@ const efv=el("g",{class:"clickable"},M);
 const e1=el("path",{d:"M458 121 L482 139 L482 121 L458 139 Z",fill:"#39e46f",class:"vbody"},efv);
 const e2=el("path",{d:"M458 321 L482 339 L482 321 L458 339 Z",fill:"#39e46f",class:"vbody"},efv);
 mt(470,154,"EF-V12A","middle",9);mt(470,354,"EF-V12B","middle",9);
-mt(560,125,"EMERG.","middle",9);mt(560,137,"FEEDWATER","middle",9);
+mt(575,106,"EMERG.","middle",9);mt(575,118,"FEEDWATER","middle",9);
 efv.addEventListener("click",()=>openEFW());
 // RCPs
 const rcpIcons=[[260,190],[260,300],[330,250],[180,250]].map(([x,y],i)=>{const g=el("g",{class:"clickable",transform:`translate(${x},${y})`},M);const c=el("circle",{r:11,fill:"#39e46f",class:"vbody"},g);const t=el("text",{y:3.5,"text-anchor":"middle","font-size":8,"font-family":"IBM Plex Mono",fill:"#111"},g);t.textContent="P";g.addEventListener("click",()=>{S.rcp[i]=!S.rcp[i];input();logm("op",`RCP ${["1A","1B","2A","2B"][i]} ${S.rcp[i]?"started":"tripped"}.`);render()});return c});
