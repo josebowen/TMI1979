@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Three Mile Island, 1979</title>
+<meta name="description" content="A control-room simulation of the 1979 Three Mile Island Unit 2 accident.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --room:#1d2320; --panel:#8fa89a; --panel2:#7d978a; --bezel:#2a2f2c; --ink:#101512; --label:#f4f1e6;
+  --amber:#ffb627; --red:#ff3b2f; --green:#39e46f; --white:#f7f3e3; --off:#3b423e; --glass:#0e1411;
+  --paper:#efe9d6; --tag:#f5d33b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--room);color:var(--label);font-family:"IBM Plex Sans Condensed",system-ui,sans-serif}
+button{font-family:inherit;cursor:pointer}
+#app{max-width:1440px;margin:0 auto;padding:8px 12px 10px;display:flex;flex-direction:column;gap:7px;height:100vh;min-height:700px}
+/* top bar */
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.plant{font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:15px}
+.plant small{display:block;font-weight:400;letter-spacing:.06em;color:#9fb3a8;font-size:12px}
+.clock{margin-left:auto;display:flex;gap:10px;align-items:center}
+.nixie{font-family:"IBM Plex Mono",monospace;background:#050706;color:var(--amber);padding:6px 10px;border-radius:4px;font-size:22px;letter-spacing:.08em;box-shadow:inset 0 0 8px rgba(255,182,39,.25);border:1px solid #333}
+.nixie small{font-size:11px;color:#b98a2e;display:block;letter-spacing:.1em}
+.tbtn{background:#2f3833;color:var(--label);border:1px solid #4a5550;border-radius:6px;padding:8px 12px;font-size:14px;font-weight:600}
+.tbtn:hover{background:#3b4640}
+.tbtn.on{background:var(--amber);color:#111}
+/* annunciator */
+.annun{background:var(--bezel);padding:6px;border-radius:8px;display:grid;grid-template-columns:repeat(12,1fr);gap:4px;box-shadow:inset 0 0 0 2px #151816}
+.win{background:var(--glass);color:#333b37;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:700;text-align:center;line-height:1.12;padding:4px 3px;min-height:32px;display:flex;align-items:center;justify-content:center;border-radius:2px;border:1px solid #000;text-transform:uppercase;transition:background .1s}
+.win.red.lit{background:#ff5a4a;color:#2a0602;box-shadow:0 0 12px rgba(255,80,60,.7)}
+.win.amb.lit{background:#ffc550;color:#2a1a00;box-shadow:0 0 12px rgba(255,190,70,.6)}
+.win.wht.lit{background:#fbf6e2;color:#222;box-shadow:0 0 10px rgba(255,255,230,.5)}
+.win.flash{animation:blink .5s steps(1) infinite}
+@keyframes blink{50%{background:var(--glass);color:#333b37;box-shadow:none}}
+.annbar{display:flex;gap:8px;align-items:center;margin-top:-4px}
+.annbar .count{font-family:"IBM Plex Mono",monospace;font-size:13px;color:#ffb3a8}
+.ack{background:#c9302c;color:#fff;border:0;border-radius:6px;padding:8px 16px;font-weight:700;letter-spacing:.08em}
+.ack:disabled{background:#4a3130;color:#9a8683}
+.printer{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:12px;color:#9fb3a8}
+/* main grid */
+.main{display:grid;grid-template-columns:290px 1fr 320px;gap:10px;flex:1;min-height:0}
+.center{display:flex;flex-direction:column;gap:8px;min-height:0}
+.center .mimic{flex:1;min-height:0}
+.board{overflow:auto}
+.board{background:linear-gradient(#93ab9e,#86a092);border-radius:8px;padding:8px;color:var(--ink);box-shadow:inset 0 0 0 2px #6f877b, 0 2px 0 #0008}
+.board h3{margin:0 0 8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;background:var(--ink);color:var(--label);display:inline-block;padding:3px 8px;border-radius:2px}
+.gauges{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.gauge{background:#e9e4d2;border-radius:6px;padding:4px 5px 4px;text-align:center;border:2px solid #2a2f2c}
+.gauge .nm{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.gauge svg{width:100%;height:auto;display:block}
+.digital{font-family:"IBM Plex Mono",monospace;font-size:17px;background:#050706;color:var(--green);border-radius:3px;padding:2px 4px;margin-top:3px}
+.digital.warn{color:var(--amber)}
+.digital.bad{color:var(--red)}
+.vbar{height:92px;width:34px;margin:4px auto;background:#111;border:2px solid #2a2f2c;position:relative;border-radius:2px}
+.vbar i{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(#63c7ff,#2a7bb8);transition:height .4s}
+.vbar b{position:absolute;left:-2px;right:-2px;height:2px;background:var(--red)}
+.vbar span{position:absolute;right:-30px;font-size:9px;font-family:"IBM Plex Mono",monospace}
+/* mimic */
+.mimic{background:#0f1512;border-radius:8px;padding:8px;position:relative;box-shadow:inset 0 0 0 2px #2a2f2c}
+.mimic svg{width:100%;height:100%;display:block}
+.mt{fill:#c9d6cf;font-family:"IBM Plex Mono",monospace;font-size:11px}
+.pipe{fill:none;stroke:#5e6d66;stroke-width:6;stroke-linecap:round}
+.flow{fill:none;stroke:#63c7ff;stroke-width:3;stroke-dasharray:8 10;animation:flow 1s linear infinite}
+.flow.steam{stroke:#e9e9e9;opacity:.8}
+.flow.hot{stroke:#ff8a5c}
+@keyframes flow{to{stroke-dashoffset:-18}}
+.vessel{fill:#2b3531;stroke:#9fb3a8;stroke-width:2}
+.clickable{cursor:pointer}
+.clickable:hover .vbody{stroke:#fff;stroke-width:3}
+.vbody{stroke:#0f1512;stroke-width:1.5}
+/* controls */
+.ctl{display:flex;flex-direction:column;gap:6px}
+.grp{background:#7f998b;border-radius:6px;padding:6px 8px;border:1px solid #6a8376}
+.grp .gt{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center}
+.lamps{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
+.lamp{display:flex;flex-direction:column;align-items:center;font-size:9.5px;font-weight:700;gap:2px;min-width:40px;position:relative}
+.lamp i{width:18px;height:18px;border-radius:50%;background:var(--off);border:2px solid #1e2421;box-shadow:inset 0 -3px 5px #0006}
+.lamp.r i{background:#5b2320}.lamp.g i{background:#1f4a2c}.lamp.a i{background:#5a4418}.lamp.w i{background:#555}
+.lamp.r.on i{background:var(--red);box-shadow:0 0 10px var(--red),inset 0 -2px 4px #0004}
+.lamp.g.on i{background:var(--green);box-shadow:0 0 10px var(--green),inset 0 -2px 4px #0004}
+.lamp.a.on i{background:var(--amber);box-shadow:0 0 10px var(--amber),inset 0 -2px 4px #0004}
+.lamp.w.on i{background:var(--white);box-shadow:0 0 10px #fff}
+.tagged::after{content:"OUT OF\A SERVICE";white-space:pre;position:absolute;top:-4px;left:-6px;right:-6px;height:30px;background:var(--tag);color:#111;font-size:7.5px;line-height:1.2;display:flex;align-items:center;justify-content:center;text-align:center;border:1px solid #8a7300;transform:rotate(-6deg);box-shadow:0 2px 3px #0006;padding-top:4px}
+.sw{display:flex;gap:6px}
+.sw button{flex:1;border:2px solid #1e2421;background:#d9d4c1;color:#111;border-radius:5px;padding:5px 4px;font-weight:700;font-size:12px;box-shadow:0 3px 0 #1e2421}
+.sw button:active{transform:translateY(2px);box-shadow:0 1px 0 #1e2421}
+.sw button.sel{background:#2a2f2c;color:var(--label)}
+.slider{width:100%;accent-color:#c9302c}
+.sval{font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:700}
+.scram{background:#b3261e;color:#fff;border:3px solid #1e2421;border-radius:50%;width:54px;height:54px;font-weight:700;font-size:11px;box-shadow:0 3px 0 #1e2421}
+/* log */
+.bottom{display:grid;grid-template-columns:1fr 360px;gap:10px}
+.log{background:var(--paper);color:#222;border-radius:6px;padding:6px 10px;height:128px;flex:none;overflow:auto;font-family:"IBM Plex Mono",monospace;font-size:13px;line-height:1.45;box-shadow:inset 0 0 0 1px #bbb}
+.log div{border-bottom:1px dotted #c8c1a8;padding:2px 0}
+.log .t{color:#8a7a55;margin-right:6px}
+.log .ss{color:#7a1a12;font-weight:600}
+.log .op{color:#1c3f66}
+.log .sys{color:#555}
+.prompt{position:absolute;left:12px;right:12px;top:10px;background:#2a2f2c;border-radius:8px;padding:12px 14px;display:none;flex-direction:column;gap:8px;border:2px solid transparent;box-shadow:0 10px 30px #000a;z-index:3}
+.prompt.live{display:flex;border-color:var(--amber);animation:pb 1s infinite}
+@keyframes pb{50%{border-color:#6b5020}}
+.prompt .who{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--amber)}
+.prompt .say{font-size:15px;line-height:1.4}
+.prompt .row{display:flex;gap:8px}
+.prompt .row button{flex:1;border:0;border-radius:6px;padding:10px;font-weight:700;font-size:14px}
+.pa{background:#c9302c;color:#fff}.pb{background:#d9d4c1;color:#111}
+.cd{height:4px;background:#444;border-radius:2px;overflow:hidden}.cd i{display:block;height:100%;background:var(--amber);width:100%}
+.hint{position:absolute;left:12px;right:12px;bottom:10px;background:#0f2433;border:1px solid #2d5a7a;border-radius:8px;padding:10px 12px;font-size:15px;line-height:1.4;display:none;z-index:2;box-shadow:0 6px 20px #0008}
+.hint.show{display:block}
+.hint b{color:#8fd0ff;display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px}
+/* screens */
+.screen{position:fixed;inset:0;background:rgba(10,13,11,.94);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+.screen.hide{display:none}
+.card{max-width:700px;background:#1b211e;border:1px solid #3a4540;border-radius:12px;padding:32px 36px;box-shadow:0 20px 60px #000}
+.card h1{font-size:44px;margin:4px 0 10px;letter-spacing:.02em}
+.card .k{color:var(--amber);letter-spacing:.2em;font-size:13px;font-weight:700;text-transform:uppercase}
+.card p,.card li{font-size:17px;line-height:1.55;color:#d9dfd9}
+.card ul{padding-left:20px}
+.go{background:#c9302c;color:#fff;border:0;border-radius:8px;padding:14px 28px;font-size:18px;font-weight:700;margin-top:14px}
+.small{font-size:13px;color:#8fa39a}
+.narrow{display:none;background:#5a4418;color:#fff;padding:8px 12px;border-radius:6px;font-size:14px}
+@media (max-width:1100px){#app{height:auto}.main{grid-template-columns:1fr 1fr}.center{grid-column:1/-1;order:-1}.center .mimic{height:380px;flex:none}.annun{grid-template-columns:repeat(6,1fr)}.narrow{display:block}}
+@media (max-width:640px){.main{grid-template-columns:1fr}.annun{grid-template-columns:repeat(4,1fr)}.card h1{font-size:32px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top">
+    <div class="plant">Three Mile Island · Unit 2 · Control Room<small>Middletown, Pennsylvania · 28 March 1979</small></div>
+    <div class="narrow">This simulation works best on a laptop or larger screen.</div>
+    <div class="clock">
+      <div class="nixie"><small>STATION TIME</small><span id="clock">04:00:37</span></div>
+      <div class="nixie"><small>SINCE TRIP</small><span id="since">T+00:00</span></div>
+      <button class="tbtn" id="pause">Pause</button>
+      <button class="tbtn on" id="sound">Sound on</button>
+    </div>
+  </div>
+
+  <div class="annun" id="annun"></div>
+  <div class="annbar">
+    <button class="ack" id="ack">ACKNOWLEDGE</button>
+    <span class="count" id="acount"></span>
+    <span class="printer" id="printer">Alarm printer: current</span>
+  </div>
+
+  <div class="main">
+    <div class="board">
+      <h3>Reactor coolant</h3>
+      <div class="gauges">
+        <div class="gauge"><div class="nm">RCS pressure</div><svg viewBox="0 0 120 80" id="gP"></svg><div class="digital" id="dP">2155 psig</div></div>
+        <div class="gauge"><div class="nm">Pressurizer level</div><div class="vbar" id="pzr"><i></i><b style="bottom:95%"></b><span style="top:-2px">400</span><span style="bottom:-4px">0</span></div><div class="digital" id="dL">220 in</div></div>
+        <div class="gauge"><div class="nm">Core exit temp</div><svg viewBox="0 0 120 80" id="gT"></svg><div class="digital" id="dT">580 °F</div></div>
+        <div class="gauge"><div class="nm">PORV tailpipe</div><svg viewBox="0 0 120 80" id="gTP"></svg><div class="digital" id="dTP">190 °F</div></div>
+        <div class="gauge"><div class="nm">Drain tank press</div><div class="digital" id="dRC">3 psig</div><div class="nm" style="margin-top:6px">Containment</div><div class="digital" id="dCT">0.1 psig</div></div>
+        <div class="gauge"><div class="nm">Steam gen level</div><div class="digital" id="dSG">A 30 / B 30 in</div><div class="nm" style="margin-top:6px">Bldg radiation</div><div class="digital" id="dRad">low</div></div>
+      </div>
+    </div>
+
+    <div class="center">
+      <div class="mimic"><svg id="mim" viewBox="0 0 620 420" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="prompt" id="prompt"></div>
+        <div class="hint" id="hint"><b>Engineer on the phone</b><span id="htext"></span></div>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+
+    <div class="board ctl">
+      <h3>Controls</h3>
+      <div class="grp">
+        <div class="gt">PORV (RC-RV2) indication</div>
+        <div class="lamps"><div class="lamp r" id="lPo"><i></i>OPEN</div><div class="lamp g" id="lPc"><i></i>CLOSED</div></div>
+        <div class="small" style="color:#20302a">Lamp shows the signal sent to the valve.</div>
+      </div>
+      <div class="grp">
+        <div class="gt">PORV block valve (RC-V2)</div>
+        <div class="lamps"><div class="lamp r on" id="lBo"><i></i>OPEN</div><div class="lamp g" id="lBc"><i></i>CLOSED</div></div>
+        <div class="sw"><button id="bBopen" class="sel">OPEN</button><button id="bBclose">CLOSE</button></div>
+      </div>
+      <div class="grp">
+        <div class="gt">High pressure injection <span class="sval" id="hpiv">0%</span></div>
+        <div class="lamps"><div class="lamp r" id="lH1"><i></i>MU-P1A</div><div class="lamp r" id="lH2"><i></i>MU-P1C</div></div>
+        <input type="range" class="slider" id="hpi" min="0" max="100" step="5" value="0">
+      </div>
+      <div class="grp">
+        <div class="gt">Emergency feedwater</div>
+        <div class="lamps"><div class="lamp r" id="lE1"><i></i>PUMPS</div><div class="lamp g on" id="lV1"><i></i>V12A SHUT</div><div class="lamp g on tagged" id="lV2"><i></i>V12B SHUT</div><div class="lamp r" id="lV3"><i></i>V12 OPEN</div></div>
+        <div class="sw"><button id="bEF">OPEN EF-V12A/B</button></div>
+      </div>
+      <div class="grp">
+        <div class="gt">Reactor coolant pumps</div>
+        <div class="lamps" id="rcps"></div>
+        <div class="sw"><button id="bRCPon">RUN ALL</button><button id="bRCPoff">TRIP ALL</button></div>
+      </div>
+      <div class="grp" style="display:flex;align-items:center;gap:10px">
+        <button class="scram" id="bScram">REACTOR TRIP</button>
+        <div class="lamps"><div class="lamp w" id="lRods"><i></i>RODS IN</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="screen" id="intro"><div class="card">
+  <div class="k">A control-room simulation · about five minutes · best on a laptop</div>
+  <h1>Three Mile Island, 1979</h1>
+  <p>4:00 a.m. Unit 2 is running at 97% power. Something in the turbine building has just tripped, and the panels are lighting up. You are the operator on shift. Your job: <b>keep water over the reactor core.</b></p>
+  <ul>
+    <li>Alarms flash until you <b>acknowledge</b> them. Not all of them matter.</li>
+    <li>Watch the gauges and the plant diagram. Click the valves and switches on the right.</li>
+    <li>Your shift supervisor will give orders. You can overrule him.</li>
+    <li>Time runs fast: one minute of plant time every two seconds. Use <b>Pause</b> to think.</li>
+  </ul>
+  <button class="go" id="start">Take the controls</button>
+  <p class="small">A simplified model of the real accident sequence. Instruments and alarms are modeled on the 1979 control room, not reproduced exactly.</p>
+</div></div>
+<div class="screen hide" id="end"><div class="card" id="endcard"></div></div>
+
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const NS="http://www.w3.org/2000/svg";
+const el=(t,a={},p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,k)=>a+(b-a)*k;
+
+/* ---------- state ---------- */
+const SEC_PER_MIN=2;            // real seconds per plant minute
+const S={t:0,running:false,paused:false,over:false,
+  P:2155,I:100,L:220,T:580,TP:190,RC:3,CT:0.1,rad:0,SGa:30,SGb:30,
+  porvOpen:false,porvStuck:false,porvSignal:"closed",block:"open",hpi:0,hpiAuto:false,efw:false,
+  rcp:[true,true,true,true],rods:false,fwTrip:false,disk:false,stable:0,
+  lastInput:0,prompt:null,flags:{},sound:true,userHpi:false};
+
+/* ---------- annunciators ---------- */
+const ANN=[
+ ["COND PUMP TRIP","amb",s=>s.t>0],["MAIN FW PUMP TRIP","red",s=>s.fwTrip],["TURBINE TRIP","red",s=>s.fwTrip],["REACTOR TRIP","red",s=>s.rods],
+ ["RCS PRESS HIGH","red",s=>s.P>2300],["RCS PRESS LOW","red",s=>s.rods&&s.P<1700],["PZR LEVEL HIGH","amb",s=>s.L>300],["PZR LEVEL LOW","amb",s=>s.L<120],
+ ["ESAS HPI ACTUATED","red",s=>s.hpiAuto],["EFW PUMPS RUNNING","wht",s=>s.t>0.05],["SG A LEVEL LOW","amb",s=>s.SGa<10],["SG B LEVEL LOW","amb",s=>s.SGb<10],
+ ["PORV TAILPIPE TEMP HI","amb",s=>s.TP>200],["RC DRAIN TANK PRESS HI","amb",s=>s.RC>120],["RC DRAIN TANK TEMP HI","amb",s=>s.RC>60],["DRAIN TANK RUPTURE DISK","red",s=>s.disk],
+ ["CONTAINMENT PRESS HI","red",s=>s.CT>2],["BLDG SUMP LEVEL HI","amb",s=>s.disk&&s.t>18],["RCP VIBRATION HI","red",s=>s.rcp.some(x=>x)&&s.I<68],["RCP SEAL LEAKOFF","amb",s=>s.rcp.some(x=>x)&&s.I<62],
+ ["CORE EXIT TEMP HI","red",s=>s.T>620],["INCORE THERMO OFFSCALE","red",s=>s.T>700],["AREA RADIATION HI","red",s=>s.rad>1],["COMPUTER ALARM BACKLOG","wht",s=>s.t>1.5],
+ ["MAKEUP TANK LEVEL LO","amb",s=>s.hpi>60&&s.t>6],["LETDOWN ISOLATED","wht",s=>s.hpiAuto],["HOTWELL LEVEL LO","amb",s=>s.t>0.3],["STEAM DUMP ACTIVE","wht",s=>s.fwTrip&&s.t<6],
+ ["EFW DISCHARGE PRESS HI","amb",s=>!s.efw&&s.t>0.5],["SG A PRESS LOW","amb",s=>!s.efw&&s.t>7],["NEUTRON FLUX HI","red",s=>s.t<0.1&&s.t>0],["LOSS OF HEAT SINK","red",s=>!s.efw&&s.t>8&&!s.rcp.some(x=>x)],
+ ["RC PUMP 1A AMPS LOW","amb",s=>s.rcp[0]&&s.I<64],["RC PUMP 2B AMPS LOW","amb",s=>s.rcp[3]&&s.I<64],["STACK MONITOR HI","red",s=>s.rad>3],["HYDROGEN IN CONTAINMENT","red",s=>s.T>1800]
+];
+const annEls=[];const annState=ANN.map(()=>({on:false,acked:true}));
+ANN.forEach(([n,c],i)=>{const d=document.createElement("div");d.className="win "+c;d.textContent=n;$("annun").appendChild(d);annEls.push(d)});
+let backlog=0;
+function updateAnn(){
+  let unacked=0,newOnes=0;
+  ANN.forEach(([n,c,f],i)=>{
+    const on=!!f(S),st=annState[i];
+    if(on&&!st.on){st.acked=false;newOnes++;S.log&&0}
+    if(!on&&st.on){st.acked=true}
+    st.on=on;
+    annEls[i].classList.toggle("lit",on);
+    annEls[i].classList.toggle("flash",on&&!st.acked);
+    if(on&&!st.acked)unacked++;
+  });
+  backlog=Math.max(0,backlog+newOnes*1.5-0.006);
+  $("acount").textContent=unacked?`${unacked} unacknowledged`:"";
+  $("ack").disabled=!unacked;
+  const lag=Math.round(backlog);
+  $("printer").textContent=lag>1?`Alarm printer running ${lag} min behind`:"Alarm printer: current";
+  return unacked;
+}
+$("ack").onclick=()=>{annState.forEach(s=>{if(s.on)s.acked=true});input();updateAnn()};
+
+/* ---------- sound ---------- */
+let actx=null,hornT=0;
+function beep(f=880,d=.12,v=.05){if(!S.sound)return;try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.type="square";o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+d)}catch(e){}}
+$("sound").onclick=()=>{S.sound=!S.sound;$("sound").textContent=S.sound?"Sound on":"Sound off";$("sound").classList.toggle("on",S.sound)};
+
+/* ---------- gauges ---------- */
+function dial(svg,min,max,redFrom,label){
+  const g=el("g",{},svg);
+  const a0=-200,a1=20;const R=44,cx=60,cy=58;
+  const ang=v=>(a0+(clamp(v,min,max)-min)/(max-min)*(a1-a0))*Math.PI/180;
+  const arc=(v0,v1,col,w)=>{const p0=ang(v0),p1=ang(v1);el("path",{d:`M${cx+R*Math.cos(p0)} ${cy+R*Math.sin(p0)} A${R} ${R} 0 ${p1-p0>Math.PI?1:0} 1 ${cx+R*Math.cos(p1)} ${cy+R*Math.sin(p1)}`,stroke:col,"stroke-width":w,fill:"none"},g)};
+  arc(min,max,"#2a2f2c",3);if(redFrom!=null)arc(redFrom,max,"#d8322a",6);
+  for(let i=0;i<=5;i++){const v=min+(max-min)*i/5,p=ang(v);el("line",{x1:cx+(R-6)*Math.cos(p),y1:cy+(R-6)*Math.sin(p),x2:cx+R*Math.cos(p),y2:cy+R*Math.sin(p),stroke:"#111","stroke-width":1.5},g);
+    const t=el("text",{x:cx+(R-15)*Math.cos(p),y:cy+(R-15)*Math.sin(p)+3,"text-anchor":"middle","font-size":7,"font-family":"IBM Plex Mono",fill:"#111"},g);t.textContent=Math.round(v)}
+  const n=el("line",{x1:cx,y1:cy,x2:cx,y2:cy-R+4,stroke:"#c0271f","stroke-width":2.5,"stroke-linecap":"round"},g);
+  el("circle",{cx,cy,r:4,fill:"#111"},g);
+  return v=>{n.setAttribute("transform",`rotate(${(ang(v)*180/Math.PI)+90} ${cx} ${cy})`)};
+}
+const needP=dial($("gP"),0,2500,2300),needT=dial($("gT"),0,700,620),needTP=dial($("gTP"),0,400,200);
+
+/* ---------- mimic diagram ---------- */
+const M=$("mim");
+const mt=(x,y,s,a="start",sz)=>{const t=el("text",{x,y,class:"mt","text-anchor":a},M);if(sz)t.setAttribute("font-size",sz);t.textContent=s;return t};
+// pipes
+el("path",{d:"M150 170 H260 V120 H300",class:"pipe"},M);           // hot leg to SG A
+el("path",{d:"M150 290 H260 V330 H300",class:"pipe"},M);           // to SG B
+el("path",{d:"M360 190 V250 H150",class:"pipe"},M);                // cold legs back
+el("path",{d:"M360 270 V250",class:"pipe"},M);
+el("path",{d:"M120 130 V80 H200 V60",class:"pipe"},M);             // surge line to pressurizer
+el("path",{d:"M200 40 V18 H420 V60",class:"pipe"},M);             // relief line to drain tank
+el("path",{d:"M40 360 H90 V300",class:"pipe"},M);                  // HPI line
+el("path",{d:"M540 130 H390",class:"pipe"},M);el("path",{d:"M540 330 H390",class:"pipe"},M); // EFW lines
+const fHot=el("path",{d:"M150 170 H260 V120 H300 M150 290 H260 V330 H300 M360 190 V250 H150 M360 270 V250",class:"flow hot"},M);
+const fRel=el("path",{d:"M200 40 V18 H330 H420 V60",class:"flow steam"},M);
+const fHpi=el("path",{d:"M40 360 H90 V300",class:"flow"},M);
+const fEfw=el("path",{d:"M540 130 H390 M540 330 H390",class:"flow"},M);
+// reactor vessel
+el("rect",{x:60,y:130,width:90,height:180,rx:40,class:"vessel"},M);
+const core=el("rect",{x:80,y:200,width:50,height:80,fill:"#c96b2c",rx:4},M);
+const coreGlow=el("rect",{x:80,y:200,width:50,height:80,fill:"#ff3b2f",rx:4,opacity:0},M);
+mt(105,325,"REACTOR","middle");mt(105,338,"no water-level gauge","middle",9);
+// pressurizer
+el("rect",{x:180,y:40,width:40,height:80,rx:16,class:"vessel"},M);
+const pzrFill=el("rect",{x:183,y:60,width:34,height:57,fill:"#2a7bb8",rx:12},M);
+mt(200,136,"PRESSURIZER","middle",9);
+// block valve & PORV (clickable block)
+const bv=el("g",{class:"clickable",transform:"translate(255,18)"},M);
+const bvBody=el("path",{d:"M-12 -9 L12 9 L12 -9 L-12 9 Z",fill:"#39e46f",class:"vbody"},bv);
+mt(255,40,"BLOCK","middle",9);mt(255,51,"VALVE","middle",9);
+bv.addEventListener("click",()=>setBlock(S.block==="open"?"closed":"open"));
+const pv=el("g",{transform:"translate(310,18)"},M);
+const pvBody=el("path",{d:"M-12 -9 L12 9 L12 -9 L-12 9 Z",fill:"#39e46f",class:"vbody"},pv);
+mt(315,40,"PORV","middle",9);
+// drain tank
+el("rect",{x:390,y:60,width:70,height:44,rx:18,class:"vessel"},M);
+mt(425,118,"DRAIN TANK","middle",9);mt(467,74,"disk","start",8);
+const disk=el("circle",{cx:460,cy:82,r:5,fill:"#5e6d66"},M);
+// steam generators
+[[300,90],[300,300]].forEach(([x,y],i)=>{el("rect",{x,y,width:60,height:90,rx:20,class:"vessel"},M);mt(x+30,y+105,i?"SG B":"SG A","middle",9)});
+const sgA=el("rect",{x:303,y:150,width:54,height:27,fill:"#2a7bb8",rx:6},M);
+const sgB=el("rect",{x:303,y:360,width:54,height:27,fill:"#2a7bb8",rx:6},M);
+// EFW valves (clickable)
+const efv=el("g",{class:"clickable"},M);
+const e1=el("path",{d:"M458 121 L482 139 L482 121 L458 139 Z",fill:"#39e46f",class:"vbody"},efv);
+const e2=el("path",{d:"M458 321 L482 339 L482 321 L458 339 Z",fill:"#39e46f",class:"vbody"},efv);
+mt(470,154,"EF-V12A","middle",9);mt(470,354,"EF-V12B","middle",9);
+mt(560,125,"EMERG.","middle",9);mt(560,137,"FEEDWATER","middle",9);
+efv.addEventListener("click",()=>openEFW());
+// RCPs
+const rcpIcons=[[260,190],[260,300],[330,250],[180,250]].map(([x,y],i)=>{const g=el("g",{class:"clickable",transform:`translate(${x},${y})`},M);const c=el("circle",{r:11,fill:"#39e46f",class:"vbody"},g);const t=el("text",{y:3.5,"text-anchor":"middle","font-size":8,"font-family":"IBM Plex Mono",fill:"#111"},g);t.textContent="P";g.addEventListener("click",()=>{S.rcp[i]=!S.rcp[i];input();logm("op",`RCP ${["1A","1B","2A","2B"][i]} ${S.rcp[i]?"started":"tripped"}.`);render()});return c});
+// HPI label
+mt(20,380,"HIGH PRESSURE INJECTION");
+const hpiT=mt(20,395,"0%");
+mt(608,232,"RED = open / running","end",10);mt(608,246,"GREEN = shut / off","end",10);mt(608,262,"click valves and pumps","end",9);
+
+/* ---------- controls ---------- */
+const rcpL=$("rcps");["1A","1B","2A","2B"].forEach((n,i)=>{const d=document.createElement("div");d.className="lamp r";d.id="lR"+i;d.innerHTML=`<i></i>${n}`;d.style.cursor="pointer";d.onclick=()=>{S.rcp[i]=!S.rcp[i];input();logm("op",`RCP ${n} ${S.rcp[i]?"started":"tripped"}.`);render()};rcpL.appendChild(d)});
+$("bRCPon").onclick=()=>{S.rcp=[true,true,true,true];input();logm("op","All reactor coolant pumps running.");resolvePrompt("rcp","keep");render()};
+$("bRCPoff").onclick=()=>{S.rcp=[false,false,false,false];input();logm("op","All reactor coolant pumps tripped.");resolvePrompt("rcp","trip");render()};
+function setBlock(v){if(S.block===v)return;S.block=v;input();logm("op",v==="closed"?"Block valve RC-V2 closed.":"Block valve RC-V2 opened.");
+  if(v==="closed"&&S.porvStuck)logm("sys","Tailpipe temperature starting to fall.");render()}
+$("bBopen").onclick=()=>setBlock("open");$("bBclose").onclick=()=>setBlock("closed");
+$("hpi").oninput=e=>{S.hpi=+e.target.value;S.userHpi=true;input();resolvePrompt("hpi",S.hpi>=50?"keep":"cut");render()};
+$("hpi").onchange=e=>logm("op",`HPI set to ${S.hpi}%.`);
+function openEFW(){if(S.efw)return;S.efw=true;input();logm("op","EF-V12A and B opened. Feedwater flowing to both steam generators.");
+  if(!S.flags.tagseen){logm("ss","Who left those valves shut? One of the lights was hidden under a maintenance tag.")}render()}
+$("bEF").onclick=openEFW;
+$("bScram").onclick=()=>{if(!S.rods){S.rods=true;logm("op","Manual reactor trip.")}input();render()};
+$("pause").onclick=()=>{if(!S.running||S.over)return;S.paused=!S.paused;$("pause").textContent=S.paused?"Resume":"Pause";$("pause").classList.toggle("on",S.paused);last=performance.now()};
+
+/* ---------- log & prompts ---------- */
+function stamp(){const sec=37+Math.round(S.t*60);const hh=4+Math.floor((sec)/3600),mm=Math.floor(sec/60)%60,ss=sec%60;return `${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")}`}
+function logm(cls,msg){const d=document.createElement("div");d.innerHTML=`<span class="t">${stamp()}</span><span class="${cls}">${cls==="ss"?"SHIFT SUPV: ":cls==="op"?"YOU: ":""}${msg}</span>`;$("log").prepend(d)}
+let pTimer=null;
+function ask(id,who,say,a,b,secs,defaultChoice,onChoose){
+  S.prompt={id,onChoose,deadline:performance.now()+secs*1000,secs,def:defaultChoice};
+  $("prompt").classList.add("live");beep(660,.2,.06);
+  $("prompt").innerHTML=`<div class="who">${who}</div><div class="say">${say}</div><div class="row"><button class="pa" id="pA">${a[1]}</button><button class="pb" id="pB">${b[1]}</button></div><div class="cd"><i id="cdbar"></i></div>`;
+  $("pA").onclick=()=>{input();resolvePrompt(id,a[0])};$("pB").onclick=()=>{input();resolvePrompt(id,b[0])};
+}
+function resolvePrompt(id,choice){
+  if(!S.prompt||S.prompt.id!==id)return;
+  const p=S.prompt;S.prompt=null;$("prompt").classList.remove("live");
+  $("prompt").innerHTML="";
+  p.onChoose(choice);render();
+}
+function tickPrompt(now){
+  if(!S.prompt)return;
+  if(S.paused){S.prompt.deadline+=16;return}
+  const left=S.prompt.deadline-now;const bar=$("cdbar");if(bar)bar.style.width=clamp(left/(S.prompt.secs*1000)*100,0,100)+"%";
+  if(left<=0)resolvePrompt(S.prompt.id,S.prompt.def);
+}
+
+/* ---------- hints ---------- */
+function input(){S.lastInput=performance.now();$("hint").classList.remove("show")}
+function hintText(){
+  if(!S.efw&&S.t>1)return "Your steam generators are boiling dry. Are the emergency feedwater valves really open? Check the lamps, including any covered by a tag.";
+  if(S.block==="open"&&S.TP>200&&S.hpi<50)return "The pressurizer can read full while the core is losing water: steam bubbles push water up into it. Don't starve the core. Keep high pressure injection up.";
+  if(S.block==="open"&&S.TP>200)return "Tailpipe is hot and the drain tank is filling. That PORV lamp only shows the valve was told to close, not that it did. Try the block valve.";
+  if(S.block==="open")return "Watch the PORV tailpipe temperature and the drain tank. Water is going somewhere.";
+  if(S.hpi<50)return "The leak is stopped, but the core still needs water. Raise high pressure injection.";
+  if(!S.rcp.some(x=>x)&&S.I<70)return "With the coolant pumps off, only water over the core keeps it cool. Keep injection high.";
+  return "Hold steady. Watch core temperature come down and pressure recover.";
+}
+
+/* ---------- scripted events ---------- */
+function events(){
+  const t=S.t,f=S.flags;
+  if(!f.a&&t>=0){f.a=1;S.fwTrip=true;logm("sys","Condensate pump trip. Main feedwater pumps tripped. Turbine tripped.");beep(440,.3)}
+  if(!f.b&&t>=0.05){f.b=1;S.porvOpen=true;S.porvSignal="open";logm("sys","RCS pressure rising. PORV opened.")}
+  if(!f.c&&t>=0.14){f.c=1;S.rods=true;logm("sys","Reactor tripped on high pressure. Control rods inserted.")}
+  if(!f.d&&t>=0.22){f.d=1;S.porvSignal="closed";S.porvStuck=true;logm("sys","PORV close signal sent. Indicator shows CLOSED.")}
+  if(!f.e&&t>=2){f.e=1;S.hpiAuto=true;if(!S.userHpi){S.hpi=100}logm("sys","Pressure below 1600 psig. High pressure injection started automatically.")}
+  if(!f.f&&t>=4.5){f.f=1;
+    ask("hpi","Shift supervisor","Pressurizer level is climbing fast. If it goes solid we lose pressure control. I want HPI cut back to 15 percent, now.",
+      ["cut","Cut HPI to 15%"],["keep","Keep HPI running"],15,"cut",
+      c=>{if(c==="cut"){S.hpi=Math.min(S.hpi,15);logm("ss","HPI throttled to 15%. Keep that pressurizer off the top.")}else{S.hpi=Math.max(S.hpi,80);logm("op","Keeping HPI at "+S.hpi+"%.");logm("ss","Your call. Watch that level.")}})}
+  if(!f.g&&t>=9&&!S.efw){f.g=1;logm("sys","Steam generator levels near zero.")}
+  if(!f.h&&t>=15&&S.RC>150){f.h=1;S.disk=true;logm("sys","Drain tank rupture disk burst. Water spilling to the containment floor.")}
+  if(!f.i&&t>=22&&S.TP>200){f.i=1;logm("ss","Tailpipe reads hot. That valve's been weeping for weeks. It always reads high. Ignore it.")}
+  if(!f.j&&S.T>700){f.j=1;logm("sys","Core exit thermocouples off-scale. Computer prints ????.");logm("ss","Must be the instruments.")}
+  if(!f.k&&S.I<66&&S.rcp.some(x=>x)){f.k=1;
+    ask("rcp","Shift supervisor","The coolant pumps are shaking and the amps are bouncing. Trip them before they wreck their seals.",
+      ["trip","Trip the pumps"],["keep","Keep them running"],15,"trip",
+      c=>{if(c==="trip"){S.rcp=[false,false,false,false];logm("ss","Pumps are off. We'll rely on natural circulation.")}else{logm("op","Keeping coolant pumps running.");logm("ss","If those seals go, that's on you.")}})}
+  if(!f.l&&S.rad>1){f.l=1;logm("sys","Radiation monitors in the reactor building rising.")}
+}
+
+/* ---------- physics (simplified) ---------- */
+function step(dt){ // dt in plant minutes
+  S.t+=dt;events();
+  const leak=S.porvStuck&&S.block==="open"?1.0:0;
+  const makeup=S.hpi/100*2.0;
+  S.I=clamp(S.I+(makeup-leak-(S.porvOpen&&!S.porvStuck?0.5:0))*dt*(S.I>=100&&makeup>leak?0:1),0,100);
+  if(S.I>=100)S.I=100;
+  const pumps=S.rcp.filter(x=>x).length;
+  const pumpsWork=pumps>0&&S.I>30;
+  // heat sink
+  if(!S.efw){S.SGa=Math.max(0,S.SGa-4*dt);S.SGb=Math.max(0,S.SGb-4*dt)}else{S.SGa=Math.min(30,S.SGa+3*dt);S.SGb=Math.min(30,S.SGb+3*dt)}
+  const sink=S.SGa>3||S.SGb>3;
+  // core temperature
+  let target=sink?555:640;
+  const cooled=pumpsWork||(S.I>=72&&sink);
+  if(!S.rods)target=600;
+  if(cooled){S.T=lerp(S.T,target,clamp(0.25*dt,0,1))}
+  else if(S.I<60){S.T+=(25+(60-S.I)*3)*dt}
+  else{S.T=lerp(S.T,700,clamp(0.08*dt,0,1))}
+  if(S.T>1200)S.rad+=0.05*dt*(S.T/1200);
+  // pressure
+  let pT;
+  if(S.t<0.14)pT=2355;
+  else if(leak){pT=S.T>620?1250:1080}
+  else pT=S.I>60?(S.hpi>=40?1950:1500):1200;
+  if(!sink&&!leak)pT+=250;
+  S.P=lerp(S.P,pT,clamp((S.t<0.3?3:0.35)*dt,0,1));
+  // pressurizer level (indicated), misleading when voids form
+  let lT;
+  if(leak){lT=clamp(200+(100-S.I)*3.5+S.hpi*0.8,0,398)}
+  else lT=clamp(S.I*2.3-20+(S.hpi-40)*0.3,0,398);
+  if(S.t<2)lT=lerp(220,150,clamp(S.t/2,0,1));
+  S.L=lerp(S.L,lT,clamp(0.5*dt,0,1));
+  // tailpipe & drain tank
+  S.TP=lerp(S.TP,leak?285:(S.porvOpen&&!S.porvStuck?250:185),clamp(0.4*dt,0,1));
+  if(leak){S.RC=S.disk?Math.max(8,S.RC-10*dt):S.RC+12*dt;S.CT=S.disk?S.CT+0.12*dt:S.CT}else{S.RC=Math.max(3,S.RC-4*dt)}
+  if(S.RC>190&&!S.disk){S.disk=true;S.flags.h=1;logm("sys","Drain tank rupture disk burst. Water spilling to the containment floor.")}
+  // outcome
+  if(S.T>2200){lose();return}
+  const ok=S.block==="closed"&&S.I>85&&S.T<640&&S.efw;
+  S.stable=ok?S.stable+dt:0;
+  if(S.stable>=6)win();
+}
+
+/* ---------- render ---------- */
+function lamp(id,on){$(id).classList.toggle("on",!!on)}
+function render(){
+  const s=S;
+  const sec=Math.round(s.t*60);$("since").textContent=`T+${String(Math.floor(sec/60)).padStart(2,"0")}:${String(sec%60).padStart(2,"0")}`;
+  $("clock").textContent=stamp();
+  needP(s.P);needT(Math.min(s.T,700));needTP(s.TP);
+  $("dP").textContent=Math.round(s.P)+" psig";$("dP").className="digital"+(s.P<1700&&s.rods?" warn":"");
+  $("dT").textContent=s.T>700?"???? °F":Math.round(s.T)+" °F";$("dT").className="digital"+(s.T>700?" bad":s.T>620?" warn":"");
+  $("dTP").textContent=Math.round(s.TP)+" °F";$("dTP").className="digital"+(s.TP>200?" warn":"");
+  $("pzr").querySelector("i").style.height=(s.L/400*100)+"%";
+  $("dL").textContent=Math.round(s.L)+" in";$("dL").className="digital"+(s.L>300||s.L<120?" warn":"");
+  $("dRC").textContent=Math.round(s.RC)+" psig";$("dRC").className="digital"+(s.RC>120?" warn":"");
+  $("dCT").textContent=s.CT.toFixed(1)+" psig";$("dCT").className="digital"+(s.CT>2?" bad":"");
+  $("dSG").textContent=`A ${Math.round(s.SGa)} / B ${Math.round(s.SGb)} in`;$("dSG").className="digital"+(s.SGa<10?" warn":"");
+  $("dRad").textContent=s.rad<0.3?"low":s.rad<1?"rising":s.rad<3?"HIGH":"OFF-SCALE";$("dRad").className="digital"+(s.rad>1?" bad":s.rad>0.3?" warn":"");
+  lamp("lPo",s.porvSignal==="open");lamp("lPc",s.porvSignal==="closed");
+  lamp("lBo",s.block==="open");lamp("lBc",s.block==="closed");
+  $("bBopen").classList.toggle("sel",s.block==="open");$("bBclose").classList.toggle("sel",s.block==="closed");
+  $("hpi").value=s.hpi;$("hpiv").textContent=s.hpi+"%";lamp("lH1",s.hpi>0);lamp("lH2",s.hpi>50);
+  lamp("lE1",s.t>0.05);lamp("lV1",!s.efw);lamp("lV2",!s.efw);lamp("lV3",s.efw);
+  $("lV2").classList.toggle("tagged",!s.efw);
+  $("bEF").disabled=s.efw;$("bEF").textContent=s.efw?"EF-V12A/B OPEN":"OPEN EF-V12A/B";
+  s.rcp.forEach((r,i)=>{lamp("lR"+i,r);rcpIcons[i].setAttribute("fill",r?"#ff3b2f":"#39e46f")});
+  lamp("lRods",s.rods);
+  // mimic
+  const pumps=s.rcp.some(x=>x);
+  fHot.style.display=pumps?"":"none";fHot.style.animationDuration=(s.I>70?1:2.2)+"s";
+  fRel.style.display=(s.porvStuck&&s.block==="open")||(s.porvOpen&&!s.porvStuck)?"":"none";
+  fHpi.style.display=s.hpi>0?"":"none";fHpi.style.animationDuration=(s.hpi>50?.6:1.6)+"s";
+  fEfw.style.display=s.efw?"":"none";
+  pvBody.setAttribute("fill",s.porvSignal==="open"?"#ff3b2f":"#39e46f");
+  bvBody.setAttribute("fill",s.block==="open"?"#ff3b2f":"#39e46f");
+  e1.setAttribute("fill",s.efw?"#ff3b2f":"#39e46f");e2.setAttribute("fill",s.efw?"#ff3b2f":"#39e46f");
+  const ph=clamp(s.L/400,0,1)*74;pzrFill.setAttribute("y",117-ph);pzrFill.setAttribute("height",ph);
+  sgA.setAttribute("height",s.SGa/30*27);sgA.setAttribute("y",177-s.SGa/30*27);
+  sgB.setAttribute("height",s.SGb/30*27);sgB.setAttribute("y",387-s.SGb/30*27);
+  coreGlow.setAttribute("opacity",clamp((s.T-620)/1400,0,1));
+  disk.setAttribute("fill",s.disk?"#ff3b2f":"#5e6d66");
+  hpiT.textContent=s.hpi+"%";
+}
+
+/* ---------- loop ---------- */
+let last=0;
+function loop(now){
+  if(S.over)return;
+  if(!last)last=now;
+  const dtReal=Math.min(0.1,(now-last)/1000);last=now;
+  if(S.running&&!S.paused){
+    const sub=dtReal/SEC_PER_MIN;
+    step(sub);
+    const un=updateAnn();
+    if(un&&now-hornT>900){beep(un>6?740:620,.08,.035);hornT=now}
+    if(now-S.lastInput>10000&&S.t>0.5){$("htext").textContent=hintText();$("hint").classList.add("show")}
+    render();
+  }
+  tickPrompt(now);
+  requestAnimationFrame(loop);
+}
+$("start").onclick=()=>{$("intro").classList.add("hide");S.running=true;S.lastInput=performance.now();beep(1,.01,0);requestAnimationFrame(loop)};
+render();updateAnn();
+
+function fmtT(){const m=Math.round(S.t);return m>=60?`${Math.floor(m/60)} hr ${m%60} min`:`${m} min`}
+function win(){
+  S.over=true;
+  $("end").classList.remove("hide");
+  $("endcard").innerHTML=`<div class="k">Plant stable · ${stamp()}</div><h1>Core covered.</h1>
+  <p>You isolated the stuck valve and kept water on the core. The plant was stable ${fmtT()} after the trip.</p>
+  <p class="small">At Three Mile Island the block valve was closed at 6:22 a.m., 2 hours 22 minutes after the trip. By then about half the core had melted. The PORV lamp showed only that a close signal had been sent. Operators had cut high pressure injection because the pressurizer read nearly full, and later shut off the coolant pumps.</p>
+  <button class="go" onclick="location.reload()">Run it again</button>`;
+}
+function lose(){
+  S.over=true;
+  $("end").classList.remove("hide");
+  $("endcard").innerHTML=`<div class="k">Core damage · ${stamp()}</div><h1>The core is uncovered.</h1>
+  <p>Fuel temperatures passed 2,200 °F ${fmtT()} after the trip. The fuel cladding is failing and hydrogen is forming.</p>
+  <p class="small">This is close to what happened at Three Mile Island, where about half the core melted. There, the PORV stuck open while its lamp showed CLOSED, operators cut high pressure injection because the pressurizer read nearly full, and the coolant pumps were shut off. The block valve was closed at 2 hours 22 minutes.</p>
+  <p class="small">Try again: look for evidence that water is leaving the system.</p>
+  <button class="go" onclick="location.reload()">Try again</button>`;
+}
+})();
+</script>
+</body>
+</html>
