@@ -467,7 +467,7 @@ function dxDraw(){
   $("dx").querySelectorAll(".chip").forEach(c=>c.onclick=()=>{
     if(c.dataset.w)S.dxNow.where=c.dataset.w;else S.dxNow.by=c.dataset.b;
     if(S.dxNow.where&&S.dxNow.by){const l=S.dx[S.dx.length-1];
-      S.dx.push({where:S.dxNow.where,by:S.dxNow.by,kept:!!l&&l.where===S.dxNow.where&&l.by===S.dxNow.by,...snap()});
+      S.dx.push({where:S.dxNow.where,by:S.dxNow.by,kept:!!l&&l.where===S.dxNow.where&&l.by===S.dxNow.by,...snap()});if(l&&l.where!==S.dxNow.where)EF.extra('Diagnosis revised');
       if(S.hold==="dx"){S.hold=false;last=performance.now();$("dx").classList.remove("need");$("dxmsg").textContent=""}}
     input();dxDraw()});
 }
@@ -700,6 +700,38 @@ if(location.hash==="#play")startShift();
 
 
 function fmtT(){const m=Math.round(S.t);return m>=60?`${Math.floor(m/60)} hr ${m%60} min`:`${m} min`}
+// Effort report: time on open decisions plus optional work. A proxy for effort, not a measure of learning.
+// EF.watch(fn): fn returns the label of the decision now open, or null. EF.extra(label): one piece of optional work.
+const EF = (() => {
+  const items = [], opt = {}; let cur = null, fn = null, last = Date.now(), act = Date.now(), seen = new Set();
+  const tick = () => {
+    const n = Date.now(); let lab = null; try { lab = fn ? fn() : null; } catch (e) { }
+    if (cur && lab !== cur.label) cur = null;
+    if (lab && !cur) { cur = items.find((i) => i.label === lab); if (!cur) { cur = { label: lab, ms: 0, rev: 0 }; items.push(cur); } seen = new Set(); }
+    if (cur && !document.hidden && n - act < 90000) cur.ms += Math.min(n - last, 2000);
+    last = n;
+  };
+  setInterval(tick, 400);
+  ['pointerdown', 'keydown', 'input'].forEach((e) => addEventListener(e, () => { act = Date.now(); }, true));
+  addEventListener('click', (e) => {
+    const t = e.target.closest && e.target.closest('input[type=radio],label,.pick,.pred,.chip,.pick button,.opt'); if (!t) return; tick(); if (!cur) return;
+    const i = t.matches('label') ? t.querySelector('input') : t; if (!i) return;
+    const k = i.name || i.dataset.k || (i.parentElement && (i.parentElement.id || i.parentElement.getAttribute('aria-label'))) || 'x';
+    if (seen.has(k)) cur.rev++; else seen.add(k);
+  }, true);
+  const mmss = (ms) => { const s = Math.round(ms / 1000); return (s >= 60 ? Math.floor(s / 60) + ' min ' : '') + (s % 60) + ' s'; };
+  const sum = () => { tick(); const d = items.filter((i) => i.ms > 400), tot = d.reduce((a, i) => a + i.ms, 0), top = d.slice().sort((a, b) => b.ms - a.ms)[0], rev = d.reduce((a, i) => a + i.rev, 0), ex = Object.entries(opt); return { d, tot, top, rev, ex }; };
+  return {
+    watch(f) { fn = f; }, extra(k) { opt[k] = (opt[k] || 0) + 1; }, tick, items, opt,
+    html() {
+      const { d, tot, top, rev, ex } = sum(); if (!d.length) return '';
+      return `<h3>Effort</h3><p class="small ef">Time on decisions: <b>${mmss(tot)}</b> across ${d.length} ${d.length === 1 ? "decision" : "decisions"}. ${top ? `Longest: ${top.label} (${mmss(top.ms)}). ` : ''}Answers changed before committing: ${rev}. Optional work: ${ex.length ? ex.map(([k, n]) => `${k}${n > 1 ? ' ×' + n : ''}`).join(', ') : 'none'}.</p><p class="small ef hint">The clock runs only while a decision is open and you are active. Time is a rough stand-in for effort. It is not a measure of learning, and it is not scored.</p>`;
+    },
+    text() { const { d, tot, top, rev, ex } = sum(); return `Effort: ${mmss(tot)} on ${d.length} decisions${top ? `; longest ${top.label} (${mmss(top.ms)})` : ''}; answers changed before committing ${rev}; optional work: ${ex.length ? ex.map(([k, n]) => k + (n > 1 ? ' x' + n : '')).join(', ') : 'none'}`; },
+  };
+})();
+
+EF.watch(()=>{if(S.over)return document.querySelector('#endcard .rate')?'Rating your own reading':null;if(!S.running||tourOn)return null;if(S.hold==='dx')return 'Committing to a diagnosis';if(S.hold==='order'&&S.prompt)return 'Supervisor order: '+(S.prompt.id==='hpi'?'injection':'coolant pumps');return S.paused?'Paused to think':'Running the plant'});
 const tm=t=>"T+"+Math.round(t)+" min";
 const SOURCES=`<h3>Sources</h3><p class="small"><a href="https://pddoc.com/tmi2/kemeny/assessment_of_sinificant_events.htm" target="_blank" rel="noopener">Report of the President's Commission on the Accident at Three Mile Island (Kemeny Commission, 1979), findings on the accident</a><br><a href="https://www.pddoc.com/tmi2/kemeny/utility_and_its_suppliers.htm" target="_blank" rel="noopener">Kemeny Commission, findings on the utility and its suppliers (the indicator light, the maintenance tags)</a><br><a href="https://www.nrc.gov/docs/ML1925/ML19254E731.pdf" target="_blank" rel="noopener">Technical Staff Analysis Report Summary to the President's Commission (NRC document ML19254E731)</a></p>`;
 function debrief(){
@@ -708,8 +740,8 @@ function debrief(){
   const REAL={hpi:["cut","cut injection back, going by pressurizer level"],rcp:["trip","shut the coolant pumps off"]},NAME={hpi:"Cut high pressure injection?",rcp:"Trip the coolant pumps?"},CH={cut:"Cut it",keep:"Kept it running",trip:"Tripped them"};
   const ordRows=S.orders.map(o=>`<tr><td>${tm(o.t)}</td><td>${NAME[o.id]}</td><td>${CH[o.choice]||o.choice}, going by ${lab(BY,o.by).toLowerCase()}</td><td>The 1979 crew ${REAL[o.id][1]}.</td></tr>`).join("");
   const actRows=S.acts.slice(0,14).map(a=>`<tr><td>${tm(a.t)}</td><td>${a.msg}</td><td>${a.P} psig, pressurizer ${a.L} in, core ${a.T>700?"off scale":a.T+" °F"}</td></tr>`).join("");
-  const txt=["Three Mile Island 1979: reasoning summary",...S.dx.filter(d=>!d.kept).map(d=>`${tm(d.t)} diagnosis: ${lab(WH,d.where)}, going by ${lab(BY,d.by)}`),...S.orders.map(o=>`${tm(o.t)} ${NAME[o.id]} ${CH[o.choice]||o.choice}, going by ${lab(BY,o.by)}`),...S.acts.map(a=>`${tm(a.t)} ${a.msg}`),`Calls to the engineer: ${S.hints}`].join("\n");
-  return `<h3>Your diagnosis, as it changed</h3>
+  const txt=["Three Mile Island 1979: reasoning summary",...S.dx.filter(d=>!d.kept).map(d=>`${tm(d.t)} diagnosis: ${lab(WH,d.where)}, going by ${lab(BY,d.by)}`),...S.orders.map(o=>`${tm(o.t)} ${NAME[o.id]} ${CH[o.choice]||o.choice}, going by ${lab(BY,o.by)}`),...S.acts.map(a=>`${tm(a.t)} ${a.msg}`),`Calls to the engineer: ${S.hints}`,EF.text()].join("\n");
+  return EF.html()+`<h3>Your diagnosis, as it changed</h3>
   ${dxRows?`<table class="deb"><tr><th>When</th><th>Where the coolant was</th><th>Going by</th><th>Readings then</th></tr>${dxRows}</table>`:`<p class="small">You recorded no diagnosis.</p>`}
   <p class="small">${firstLeak?`You first said the coolant was leaving through the relief line at ${tm(firstLeak.t)}.`:"You never said the coolant was leaving through the relief line."} ${shut?`You closed the block valve at ${tm(shut.t)}.`:"You did not close the block valve."} The 1979 crew closed it at 2 hours 22 minutes. You called the engineer ${S.hints} time${S.hints===1?"":"s"}.</p>
   ${ordRows?`<h3>The supervisor's orders</h3><table class="deb"><tr><th>When</th><th>Order</th><th>You</th><th>The record</th></tr>${ordRows}</table>`:""}
@@ -739,7 +771,7 @@ $("aboutBtn").onclick=()=>{$("about").classList.remove("hide");$("aboutcard").in
 <p class="small">A five minute control room simulation for an engineering, physics, human factors or history of technology course. One objective: diagnose a fault from instruments that disagree, and say which reading you trust and why.</p>
 <h3>What is real</h3><p class="small">The sequence of the first minutes: the feedwater trip, the relief valve that opened and stuck, the lamp that showed only the close signal, the closed emergency feedwater valves with a light hidden by a maintenance tag, the throttled injection and the tripped coolant pumps. These follow the Kemeny Commission findings.</p>
 <h3>What is simplified</h3><p class="small">The plant model is a small illustrative model, not an engineering simulation. Time is compressed: one plant minute takes three seconds. Instruments and alarms are modeled on the 1979 control room, not reproduced. The supervisor's words are written for this demo and are not quotations. The 2 hours 22 minutes to close the block valve and the estimate that about half the core melted are widely reported figures that were not rechecked against a primary source for this version.</p>
-<h3>How your thinking is recorded</h3><p class="small">Your diagnosis, the reading you say you are going by, your answers to the supervisor and your actions are kept on this page with the readings at that moment, and shown back at the end. Nothing is sent anywhere.</p>
+<h3>How your thinking is recorded</h3><p class="small">Your diagnosis, the reading you say you are going by, your answers to the supervisor and your actions are kept on this page with the readings at that moment, and shown back at the end. The debrief also reports how long you spent on open decisions, including time paused to think, and how often you revised your diagnosis. Nothing is sent anywhere.</p>
 ${SOURCES}<p class="small">Built with Claude for José Antonio Bowen, weteachwithai.com, as a workshop demo. No tracking.</p><button class="go" id="aboutX">Close</button>`;$("aboutX").onclick=()=>$("about").classList.add("hide")};
 dxDraw();
 window.__demo={S,step,render,state:()=>JSON.parse(JSON.stringify({t:S.t,hold:S.hold,dx:S.dx,orders:S.orders,acts:S.acts,hints:S.hints,over:S.over,block:S.block,T:S.T}))};
