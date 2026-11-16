@@ -725,7 +725,7 @@ const EF = (() => {
     watch(f) { fn = f; }, extra(k) { opt[k] = (opt[k] || 0) + 1; }, tick, items, opt,
     html() {
       const { d, tot, top, rev, ex } = sum(); if (!d.length) return '';
-      return `<h3>Effort</h3><p class="small ef">Time on decisions: <b>${mmss(tot)}</b> across ${d.length} ${d.length === 1 ? "decision" : "decisions"}. ${top ? `Longest: ${top.label} (${mmss(top.ms)}). ` : ''}Answers changed before committing: ${rev}. Optional work: ${ex.length ? ex.map(([k, n]) => `${k}${n > 1 ? ' ×' + n : ''}`).join(', ') : 'none'}.</p><p class="small ef hint">The clock runs only while a decision is open and you are active. Time is a rough stand-in for effort. It is not a measure of learning, and it is not scored.</p>`;
+      return `<h3>Effort</h3><p class="small ef">Time on decisions: <b>${mmss(tot)}</b> across ${d.length} ${d.length === 1 ? "decision" : "decisions"}. ${top ? `Longest: ${top.label} (${mmss(top.ms)}). ` : ''}Answers changed before committing: ${rev}. Optional work: ${ex.length ? ex.map(([k, n]) => `${k}${n > 1 ? ' ×' + n : ''}`).join(', ') : 'none'}.</p><p class="small ef hint">The clock runs only while a decision is open and you are active. Time is a very rough stand-in for effort. It is not a measure of learning, and it is not scored.</p>`;
     },
     text() { const { d, tot, top, rev, ex } = sum(); return `Effort: ${mmss(tot)} on ${d.length} decisions${top ? `; longest ${top.label} (${mmss(top.ms)})` : ''}; answers changed before committing ${rev}; optional work: ${ex.length ? ex.map(([k, n]) => k + (n > 1 ? ' x' + n : '')).join(', ') : 'none'}`; },
   };
