@@ -180,6 +180,19 @@ button{font-family:inherit;cursor:pointer}
  .card{padding:22px}.card h1{font-size:30px}.go{font-size:16px;padding:12px 18px}
  .go.ghost{margin:10px 0 0}
 }
+.dx{background:#20262a;border:2px solid #3a4348;border-radius:8px;padding:8px 10px;margin:8px 0;color:#e8e4d6}
+.dx.need{border-color:var(--amber);animation:pb 1s infinite}
+.dxh{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:4px}.dxh span{color:#fff;text-transform:none;letter-spacing:0;font-size:13px;margin-left:8px}
+.dxr{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:4px 0}.dxr small{width:100%;font-size:11px;color:#9fb0a8}
+.chip{border:1px solid #56636a;background:transparent;color:#e8e4d6;border-radius:14px;padding:5px 10px;font-size:12.5px;font-weight:600;cursor:pointer}
+.chip.sel{background:var(--amber);border-color:var(--amber);color:#111}
+.prompt .why{display:flex;flex-wrap:wrap;gap:5px;align-items:center}.prompt .why small{width:100%;font-size:11px;color:#c9c4b1}
+.prompt .row button:disabled{opacity:.35}
+#endcard{max-height:92vh;overflow:auto;max-width:760px}
+.deb{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0 10px}.deb td,.deb th{border-bottom:1px solid #4446;padding:5px 6px;text-align:left;vertical-align:top}.deb th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--amber)}
+#endcard h3,#aboutcard h3{font-size:15px;margin:14px 0 2px;color:var(--amber);letter-spacing:.04em}
+.rate{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+#aboutcard{max-height:92vh;overflow:auto;max-width:720px}#aboutcard a,#endcard a{color:var(--amber)}
 </style>
 </head>
 <body>
@@ -201,6 +214,7 @@ button{font-family:inherit;cursor:pointer}
     <button class="ack" id="ack">ACKNOWLEDGE</button>
     <span class="count" id="acount"></span>
     <span class="printer" id="printer">Alarm printer: current</span>
+    <button class="tbtn" id="callEng" style="margin-left:auto">Call the engineer</button>
   </div>
 
   <div class="main">
@@ -221,6 +235,9 @@ button{font-family:inherit;cursor:pointer}
         <div class="prompt" id="prompt"></div>
         <div class="hint" id="hint"><b>Engineer on the phone</b><span id="htext"></span></div>
       </div>
+      <div class="dx" id="dx"><div class="dxh">Your diagnosis<span id="dxmsg"></span></div>
+        <div class="dxr"><small>Where is the reactor coolant?</small><span id="dxW" style="display:contents"></span></div>
+        <div class="dxr"><small>Which reading are you going by?</small><span id="dxB" style="display:contents"></span></div></div>
       <div class="log" id="log"></div>
     </div>
 
@@ -229,7 +246,7 @@ button{font-family:inherit;cursor:pointer}
       <div class="grp">
         <div class="gt">PORV (RC-RV2) indication</div>
         <div class="lamps"><div class="lamp r" id="lPo"><i></i>OPEN</div><div class="lamp g" id="lPc"><i></i>CLOSED</div></div>
-        <div class="small" style="color:#20302a">Lamp shows the signal sent to the valve.</div>
+        
       </div>
       <div class="grp">
         <div class="gt">PORV block valve (RC-V2)</div>
@@ -265,10 +282,11 @@ button{font-family:inherit;cursor:pointer}
   <div class="k">Control-room simulation · about 5 minutes</div>
   <h1>Three Mile Island, 1979</h1>
   <p>4:00 a.m. Alarms are going off. <b>Keep water over the reactor core.</b></p>
-  <button class="go" id="tourBtn">Show me the controls (1 min)</button><button class="go ghost" id="start">Skip the tour</button>
+  <button class="go" id="tourBtn">Show me the controls (1 min)</button><button class="go ghost" id="start">Skip the tour</button><button class="go ghost" id="aboutBtn">About and sources</button>
   <p class="small">A simplified model of the real accident sequence. Instruments and alarms are modeled on the 1979 control room, not reproduced exactly.</p>
 </div></div>
 <div class="screen hide" id="end"><div class="card" id="endcard"></div></div>
+<div class="screen hide" id="about"><div class="card" id="aboutcard"></div></div>
 
 <script>
 (()=>{
@@ -284,7 +302,7 @@ const S={t:0,running:false,paused:false,over:false,
   P:2155,I:100,L:220,T:580,TP:190,RC:3,CT:0.1,rad:0,SGa:30,SGb:30,
   porvOpen:false,porvStuck:false,porvSignal:"closed",block:"open",hpi:0,hpiAuto:false,efw:false,
   rcp:[true,true,true,true],rods:false,fwTrip:false,disk:false,stable:0,
-  lastInput:0,prompt:null,flags:{},sound:true,userHpi:false};
+  lastInput:0,prompt:null,flags:{},sound:true,userHpi:false,hold:false,dx:[],dxNow:{where:null,by:null},acts:[],orders:[],hints:0,hintKey:null};
 
 /* ---------- annunciators ---------- */
 const ANN=[
@@ -409,46 +427,78 @@ function openEFW(){if(S.efw)return;S.efw=true;input();logm("op","EF-V12A and B o
   if(!S.flags.tagseen){logm("ss","Who left those valves shut? One of the lights was hidden under a maintenance tag.")}render()}
 $("bEF").onclick=openEFW;
 $("bScram").onclick=()=>{if(!S.rods){S.rods=true;logm("op","Manual reactor trip.")}input();render()};
-$("pause").onclick=()=>{if(!S.running||S.over)return;S.paused=!S.paused;$("pause").textContent=S.paused?"Resume":"Pause";$("pause").classList.toggle("on",S.paused);last=performance.now()};
+$("pause").onclick=()=>{if(!S.running||S.over)return;if(S.hold){beep(520,.2,.05);$("prompt").scrollIntoView({block:"center"});$("prompt").classList.add("live");return}S.paused=!S.paused;$("pause").textContent=S.paused?"Resume":"Pause";$("pause").classList.toggle("on",S.paused);last=performance.now()};
 
 /* ---------- log & prompts ---------- */
 function stamp(){const sec=37+Math.round(S.t*60);const hh=4+Math.floor((sec)/3600),mm=Math.floor(sec/60)%60,ss=sec%60;return `${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")}`}
-function logm(cls,msg){const d=document.createElement("div");d.innerHTML=`<span class="t">${stamp()}</span><span class="${cls}">${cls==="ss"?"SHIFT SUPV: ":cls==="op"?"YOU: ":""}${msg}</span>`;$("log").prepend(d)}
+const snap=()=>({t:S.t,P:Math.round(S.P),L:Math.round(S.L),T:Math.round(S.T),TP:Math.round(S.TP)});
+function logm(cls,msg){if(cls==="op")S.acts.push({msg,...snap()});const d=document.createElement("div");d.innerHTML=`<span class="t">${stamp()}</span><span class="${cls}">${cls==="ss"?"SHIFT SUPV: ":cls==="op"?"YOU: ":""}${msg}</span>`;$("log").prepend(d)}
 let pTimer=null;
+const BY=[["pzr","Pressurizer level"],["press","RCS pressure"],["tail","Tailpipe and drain tank"],["lamps","Valve lamps"],["core","Core temperature"]];
+const WH=[["full","Still in the system"],["sg","Boiling off in the steam generators"],["porv","Leaving through the relief line"],["unk","Not sure yet"]];
+const lab=(arr,k)=>(arr.find(x=>x[0]===k)||[,"none given"])[1];
 function ask(id,who,say,a,b,secs,defaultChoice,onChoose){
-  S.prompt={id,onChoose,deadline:performance.now()+secs*1000,secs,def:defaultChoice};
+  const demo=id==="demo";
+  S.prompt={id,onChoose,deadline:performance.now()+secs*1000,secs,def:defaultChoice,noTimer:!demo,by:null,say};
+  if(!demo)S.hold="order";
   $("prompt").classList.add("live");beep(660,.2,.06);
-  $("prompt").innerHTML=`<div class="who">${who}</div><div class="say">${say}</div><div class="row"><button class="pa" id="pA">${a[1]}</button><button class="pb" id="pB">${b[1]}</button></div><div class="cd"><i id="cdbar"></i></div>`;
+  $("prompt").innerHTML=`<div class="who">${who}</div><div class="say">${say}</div>`+(demo?"":`<div class="why"><small>The clock is stopped. Which reading are you going by?</small>${BY.map(x=>`<button class="chip" data-r="${x[0]}">${x[1]}</button>`).join("")}</div>`)+`<div class="row"><button class="pa" id="pA" ${demo?"":"disabled"}>${a[1]}</button><button class="pb" id="pB" ${demo?"":"disabled"}>${b[1]}</button></div>`;
+  $("prompt").querySelectorAll(".chip").forEach(c=>c.onclick=()=>{S.prompt.by=c.dataset.r;$("prompt").querySelectorAll(".chip").forEach(x=>x.classList.toggle("sel",x===c));$("pA").disabled=$("pB").disabled=false});
   $("pA").onclick=()=>{input();resolvePrompt(id,a[0])};$("pB").onclick=()=>{input();resolvePrompt(id,b[0])};
 }
 function resolvePrompt(id,choice){
   if(!S.prompt||S.prompt.id!==id)return;
   const p=S.prompt;S.prompt=null;$("prompt").classList.remove("live");
   $("prompt").innerHTML="";
+  if(id!=="demo"){S.orders.push({id,choice,by:p.by,...snap()});if(S.hold==="order")S.hold=false;last=performance.now()}
   p.onChoose(choice);render();
 }
 function tickPrompt(now){
-  if(!S.prompt)return;
+  if(!S.prompt||S.prompt.noTimer)return;
   if(S.paused){S.prompt.deadline+=16;return}
-  const left=S.prompt.deadline-now;const bar=$("cdbar");if(bar)bar.style.width=clamp(left/(S.prompt.secs*1000)*100,0,100)+"%";
+  const left=S.prompt.deadline-now;
   if(left<=0)resolvePrompt(S.prompt.id,S.prompt.def);
 }
 
+/* ---------- diagnosis board ---------- */
+function dxDraw(quiet){
+  $("dxW").innerHTML=WH.map(x=>`<button class="chip ${S.dxNow.where===x[0]?"sel":""}" data-w="${x[0]}">${x[1]}</button>`).join("");
+  $("dxB").innerHTML=BY.map(x=>`<button class="chip ${S.dxNow.by===x[0]?"sel":""}" data-b="${x[0]}">${x[1]}</button>`).join("");
+  $("dx").querySelectorAll(".chip").forEach(c=>c.onclick=()=>{
+    if(c.dataset.w)S.dxNow.where=c.dataset.w;else S.dxNow.by=c.dataset.b;
+    if(S.dxNow.where&&S.dxNow.by){const l=S.dx[S.dx.length-1];
+      S.dx.push({where:S.dxNow.where,by:S.dxNow.by,kept:!!l&&l.where===S.dxNow.where&&l.by===S.dxNow.by,...snap()});if(l&&l.where!==S.dxNow.where)EF.extra('Diagnosis revised');
+      if(S.hold==="dx")dxRelease()}
+    input();dxDraw()});
+}
+function needDx(msg){
+  S.hold="dx";$("dx").classList.add("need");$("dxmsg").textContent="Clock stopped";beep(520,.2,.05);
+  const P=$("prompt");P.classList.add("live");
+  const draw=()=>{P.innerHTML=`<div class="who">Clock stopped · your diagnosis</div><div class="say">${msg}</div><div class="why"><small>Where is the reactor coolant?</small>${WH.map(x=>`<button class="chip ${S.dxNow.where===x[0]?"sel":""}" data-w="${x[0]}">${x[1]}</button>`).join("")}</div><div class="why"><small>Which reading are you going by?</small>${BY.map(x=>`<button class="chip ${S.dxNow.by===x[0]?"sel":""}" data-b="${x[0]}">${x[1]}</button>`).join("")}</div><div class="row"><button class="pa" id="dxGo" ${S.dxNow.where&&S.dxNow.by?"":"disabled"}>Restart the clock</button></div>`;
+    P.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{if(c.dataset.w)S.dxNow.where=c.dataset.w;else S.dxNow.by=c.dataset.b;input();draw();dxDraw(true)});
+    $("dxGo").onclick=()=>{const l=S.dx[S.dx.length-1];S.dx.push({where:S.dxNow.where,by:S.dxNow.by,kept:!!l&&l.where===S.dxNow.where&&l.by===S.dxNow.by,...snap()});if(l&&l.where!==S.dxNow.where)EF.extra('Diagnosis revised');dxRelease();input()}};
+  draw();
+}
+function dxRelease(){if(S.hold==="dx"){S.hold=false;last=performance.now()}$("dx").classList.remove("need");$("dxmsg").textContent="";if(!S.prompt){$("prompt").classList.remove("live");$("prompt").innerHTML=""}dxDraw(true)}
+
 /* ---------- hints ---------- */
 function input(){S.lastInput=performance.now();$("hint").classList.remove("show")}
-function hintText(){
-  if(!S.efw&&S.t>1)return "Your steam generators are boiling dry. Are the emergency feedwater valves really open? Check the lamps, including any covered by a tag.";
-  if(S.block==="open"&&S.TP>200&&S.hpi<50)return "The pressurizer can read full while the core is losing water: steam bubbles push water up into it. Don't starve the core. Keep high pressure injection up.";
-  if(S.block==="open"&&S.TP>200)return "Tailpipe is hot and the drain tank is filling. That PORV lamp only shows the valve was told to close, not that it did. Try the block valve.";
-  if(S.block==="open")return "Watch the PORV tailpipe temperature and the drain tank. Water is going somewhere.";
-  if(S.hpi<50)return "The leak is stopped, but the core still needs water. Raise high pressure injection.";
-  if(!S.rcp.some(x=>x)&&S.I<70)return "With the coolant pumps off, only water over the core keeps it cool. Keep injection high.";
-  return "Hold steady. Watch core temperature come down and pressure recover.";
+function hintState(){
+  if(!S.efw&&S.t>1)return["efw","The steam generators are losing level. What is supposed to be feeding them?","Check every emergency feedwater lamp, including any under a tag."];
+  if(S.block==="open"&&S.TP>200&&S.hpi<50)return["hpi","The pressurizer reads high. Is that the same as water over the core?","Steam can push water up into the pressurizer. Do not starve the core of injection."];
+  if(S.block==="open"&&S.TP>200)return["leak","Pressure is low and the drain tank is filling. What does that tell you about where the coolant is?","Compare what the relief valve lamp says with the tailpipe temperature. One valve further along can be shut."];
+  if(S.block==="open")return["watch","Which two readings disagree with each other?","Watch the tailpipe temperature and the drain tank."];
+  if(S.hpi<50)return["refill","The loss is stopped. What does the core still need?","Raise high pressure injection."];
+  if(!S.rcp.some(x=>x)&&S.I<70)return["pumps","With the coolant pumps off, what keeps the core cool?","Keep injection high."];
+  return["hold","What would tell you the plant is stable?","Hold steady and watch core temperature and pressure."];
 }
+$("callEng").onclick=()=>{if(!S.running||S.over)return;const[k,q,p]=hintState();const second=S.hintKey===k;S.hintKey=second?null:k;S.hints++;$("htext").textContent=second?p:q;$("hint").classList.add("show");S.acts.push({msg:"Called the engineer"+(second?" (second call)":""),...snap()})};
 
 /* ---------- scripted events ---------- */
 function events(){
   const t=S.t,f=S.flags;
+  if(!f.dx1&&t>=3&&!tourOn){f.dx1=1;if(!(S.dxNow.where&&S.dxNow.by))needDx("Three minutes in. Commit to a diagnosis to restart the clock. You can change it at any time.")}
+  if(!f.dx2&&t>=25&&!tourOn){f.dx2=1;needDx("Twenty five minutes in. Confirm or change your diagnosis to restart the clock.")}
   if(!f.a&&t>=0){f.a=1;S.fwTrip=true;logm("sys","Condensate pump trip. Main feedwater pumps tripped. Turbine tripped.");beep(440,.3)}
   if(!f.b&&t>=0.05){f.b=1;S.porvOpen=true;S.porvSignal="open";logm("sys","RCS pressure rising. PORV opened.")}
   if(!f.c&&t>=0.14){f.c=1;S.rods=true;logm("sys","Reactor tripped on high pressure. Control rods inserted.")}
@@ -564,12 +614,11 @@ function loop(now){
   if(S.over)return;
   if(!last)last=now;
   const dtReal=Math.min(0.1,(now-last)/1000);last=now;
-  if(S.running&&!S.paused){
+  if(S.running&&!S.paused&&!S.hold){
     const sub=dtReal/SEC_PER_MIN;
     step(sub);
     const un=updateAnn();
     if(un&&now-hornT>900){beep(un>6?740:620,.08,.035);hornT=now}
-    if(now-S.lastInput>10000&&S.t>0.5){$("htext").textContent=hintText();$("hint").classList.add("show")}
     render();
   }
   tickPrompt(now);
@@ -589,12 +638,14 @@ const TOUR=[
  {sel:"#ack",txt:"Click ACKNOWLEDGE to stop the flashing.",wait:"click"},
  {sel:"#gP",up:".gauge",tab:"gauges",txt:"Reactor pressure."},
  {sel:"#pzr",up:".gauge",tab:"gauges",txt:"Pressurizer level: how full the system looks."},
- {sel:"#gTP",up:".gauge",tab:"gauges",txt:"Relief-valve tailpipe. Hot means steam is escaping."},
+ {sel:"#gTP",up:".gauge",tab:"gauges",txt:"Temperature of the pipe downstream of the relief valve."},
  {sel:"#mim",up:".mimic",tab:"plant",txt:"The plant, live. Red = open or running. Green = shut or off."},
- {sel:"#bBclose",up:".grp",tab:"controls",txt:"Click CLOSE to shut this valve.",wait:"click",after:()=>{S.block="open"}},
- {sel:"#hpi",up:".grp",tab:"controls",txt:"Drag to send emergency water to the core.",wait:"input",after:()=>{S.hpi=0;S.userHpi=false}},
+ {sel:"#bBclose",up:".grp",tab:"controls",txt:"Valves have OPEN and CLOSE buttons."},
+ {sel:"#hpi",up:".grp",tab:"controls",txt:"This slider sets how much emergency water is injected."},
  {sel:"#bEF",up:".grp",tab:"controls",txt:"Some valves open with a button."},
  {sel:"#prompt",tab:"plant",txt:"Your supervisor gives orders here. Pick one.",wait:"prompt"},
+ {sel:"#dx",tab:"plant",txt:"Say where you think the coolant is and which reading you trust. Change it whenever you change your mind."},
+ {sel:"#callEng",tab:"alarms",txt:"Stuck? The engineer answers with a question first."},
  {sel:"#pause",txt:"Pause any time to think."},
  {sel:null,txt:"Your job: keep water over the core.",final:true}
 ];
@@ -657,23 +708,103 @@ if(location.hash==="#play")startShift();
 
 
 function fmtT(){const m=Math.round(S.t);return m>=60?`${Math.floor(m/60)} hr ${m%60} min`:`${m} min`}
+// Effort report: time on open decisions, time spent working after a wrong answer, time against
+// confidence and correctness, and optional work. A very rough stand-in for effort, not a measure of learning.
+// EF.watch(fn): fn returns the label of the decision now open, or null.
+// EF.mark({ ok, conf }): how the decision just committed turned out (conf 0 guessing, 1 fairly sure, 2 very sure).
+// EF.wrong(): a wrong answer was just shown. EF.resolved(): the player has answered again or moved on.
+// EF.extra(label): one piece of optional work or a voluntary return to the evidence.
+const EF = (() => {
+  const items = [], opt = {}, CONF = ['Guessing', 'Fairly sure', 'Very sure'];
+  let cur = null, prev = null, fn = null, last = Date.now(), act = Date.now(), seen = new Set(), aw = null; const after = [];
+  const live = (n) => !document.hidden && n - act < 90000;
+  const tick = () => {
+    const n = Date.now(); let lab = null; try { lab = fn ? fn() : null; } catch (e) { }
+    if (cur && lab !== cur.label) { prev = cur; cur = null; }
+    if (lab && !cur) { cur = items.find((i) => i.label === lab); if (!cur) { cur = { label: lab, ms: 0, rev: 0 }; items.push(cur); } seen = new Set(); }
+    const d = Math.min(n - last, 2000);
+    if (cur && live(n)) cur.ms += d;
+    if (aw && live(n)) aw.ms += d;
+    last = n;
+  };
+  setInterval(tick, 400);
+  ['pointerdown', 'keydown', 'input'].forEach((e) => addEventListener(e, () => { act = Date.now(); }, true));
+  addEventListener('click', (e) => {
+    const t = e.target.closest && e.target.closest('input[type=radio],label,.pick,.pred,.chip,.pick button,.opt'); if (!t) return; tick(); if (!cur) return;
+    const i = t.matches('label') ? t.querySelector('input') : t; if (!i) return;
+    const k = i.name || i.dataset.k || (i.parentElement && (i.parentElement.id || i.parentElement.getAttribute('aria-label'))) || 'x';
+    if (seen.has(k)) cur.rev++; else seen.add(k);
+  }, true);
+  const mmss = (ms) => { const s = Math.round(ms / 1000); return (s >= 60 ? Math.floor(s / 60) + ' min ' : '') + (s % 60) + ' s'; };
+  const avg = (a) => (a.length ? mmss(a.reduce((x, i) => x + i.ms, 0) / a.length) : '');
+  const sum = () => {
+    tick(); const d = items.filter((i) => i.ms > 400), tot = d.reduce((a, i) => a + i.ms, 0), top = d.slice().sort((a, b) => b.ms - a.ms)[0], rev = d.reduce((a, i) => a + i.rev, 0), ex = Object.entries(opt);
+    const m = items.filter((i) => i.ok !== undefined), right = m.filter((i) => i.ok), wrong = m.filter((i) => !i.ok);
+    const byC = CONF.map((c, k) => { const g = m.filter((i) => i.conf === k); return g.length ? `${c}: ${g.filter((i) => i.ok).length} of ${g.length} right, about ${avg(g)} each` : ''; }).filter(Boolean);
+    const aft = after.filter((a) => a.ms > 300);
+    return { d, tot, top, rev, ex, right, wrong, byC, aft };
+  };
+  const lines = () => {
+    const { d, tot, top, rev, ex, right, wrong, byC, aft } = sum(); if (!d.length) return [];
+    const L = [`Time on decisions: ${mmss(tot)} across ${d.length} ${d.length === 1 ? 'decision' : 'decisions'}.${top ? ` Longest: ${top.label} (${mmss(top.ms)}).` : ''}`];
+    if (aft.length) L.push(`After a wrong answer you kept working ${aft.length} ${aft.length === 1 ? 'time' : 'times'}, for ${mmss(aft.reduce((a, i) => a + i.ms, 0))} in all, before answering again or moving on.`);
+    if (right.length && wrong.length) L.push(`Decisions you got right took about ${avg(right)} each. Decisions you got wrong took about ${avg(wrong)} each.`);
+    if (byC.length) L.push(`Time against confidence. ${byC.join('. ')}.`);
+    L.push(`Answers changed before committing: ${rev}. Optional work and returns to the evidence: ${ex.length ? ex.map(([k, n]) => `${k}${n > 1 ? ' ×' + n : ''}`).join(', ') : 'none'}.`);
+    return L;
+  };
+  return {
+    watch(f) { fn = f; }, extra(k) { opt[k] = (opt[k] || 0) + 1; }, tick, items, opt, after,
+    mark(o) { tick(); const it = cur || prev; if (it && it.ok === undefined) Object.assign(it, o); },
+    wrong() { tick(); if (!aw) { aw = { ms: 0 }; after.push(aw); } }, resolved() { tick(); aw = null; },
+    html() { const L = lines(); return L.length ? `<h3>Effort</h3>${L.map((l) => `<p class="small ef">${l.replace(/^([^:.]{3,40}:)/, '<b>$1</b>')}</p>`).join('')}<p class="small ef hint">The clock runs only while a decision is open and you are active. Time is a very rough stand-in for effort. It is not a measure of learning, and it is not scored.</p>` : ''; },
+    text() { const L = lines(); return L.length ? 'Effort (a very rough stand-in). ' + L.join(' ') : ''; },
+  };
+})();
+EF.watch(()=>{if(S.over)return document.querySelector('#endcard .rate')?'Rating your own reading':null;if(!S.running||tourOn)return null;if(S.hold==='dx')return 'Committing to a diagnosis';if(S.hold==='order'&&S.prompt)return 'Supervisor order: '+(S.prompt.id==='hpi'?'injection':'coolant pumps');return S.paused?'Paused to think':'Running the plant'});
+const tm=t=>"T+"+Math.round(t)+" min";
+const SOURCES=`<h3>Sources</h3><p class="small"><a href="https://pddoc.com/tmi2/kemeny/assessment_of_sinificant_events.htm" target="_blank" rel="noopener">Report of the President's Commission on the Accident at Three Mile Island (Kemeny Commission, 1979), findings on the accident</a><br><a href="https://www.pddoc.com/tmi2/kemeny/utility_and_its_suppliers.htm" target="_blank" rel="noopener">Kemeny Commission, findings on the utility and its suppliers (the indicator light, the maintenance tags)</a><br><a href="https://www.nrc.gov/docs/ML1925/ML19254E731.pdf" target="_blank" rel="noopener">Technical Staff Analysis Report Summary to the President's Commission (NRC document ML19254E731)</a></p>`;
+function debrief(){
+  const firstLeak=S.dx.find(d=>d.where==="porv"),shut=S.acts.find(a=>a.msg.startsWith("Block valve RC-V2 closed"));
+  const dxRows=S.dx.filter((d,i)=>!d.kept&&!(S.dx[i+1]&&S.dx[i+1].t-d.t<0.2)).map(d=>`<tr><td>${tm(d.t)}</td><td>${lab(WH,d.where)}</td><td>${lab(BY,d.by)}</td><td>${d.P} psig, pressurizer ${d.L} in, tailpipe ${d.TP} °F</td></tr>`).join("");
+  const REAL={hpi:["cut","cut injection back, going by pressurizer level"],rcp:["trip","shut the coolant pumps off"]},NAME={hpi:"Cut high pressure injection?",rcp:"Trip the coolant pumps?"},CH={cut:"Cut it",keep:"Kept it running",trip:"Tripped them"};
+  const ordRows=S.orders.map(o=>`<tr><td>${tm(o.t)}</td><td>${NAME[o.id]}</td><td>${CH[o.choice]||o.choice}, going by ${lab(BY,o.by).toLowerCase()}</td><td>The 1979 crew ${REAL[o.id][1]}.</td></tr>`).join("");
+  const actRows=S.acts.slice(0,14).map(a=>`<tr><td>${tm(a.t)}</td><td>${a.msg}</td><td>${a.P} psig, pressurizer ${a.L} in, core ${a.T>700?"off scale":a.T+" °F"}</td></tr>`).join("");
+  const txt=["Three Mile Island 1979: reasoning summary",...S.dx.filter(d=>!d.kept).map(d=>`${tm(d.t)} diagnosis: ${lab(WH,d.where)}, going by ${lab(BY,d.by)}`),...S.orders.map(o=>`${tm(o.t)} ${NAME[o.id]} ${CH[o.choice]||o.choice}, going by ${lab(BY,o.by)}`),...S.acts.map(a=>`${tm(a.t)} ${a.msg}`),`Calls to the engineer: ${S.hints}`,EF.text()].join("\n");
+  return EF.html()+`<h3>Your diagnosis, as it changed</h3>
+  ${dxRows?`<table class="deb"><tr><th>When</th><th>Where the coolant was</th><th>Going by</th><th>Readings then</th></tr>${dxRows}</table>`:`<p class="small">You recorded no diagnosis.</p>`}
+  <p class="small">${firstLeak?`You first said the coolant was leaving through the relief line at ${tm(firstLeak.t)}.`:"You never said the coolant was leaving through the relief line."} ${shut?`You closed the block valve at ${tm(shut.t)}.`:"You did not close the block valve."} The 1979 crew closed it at 2 hours 22 minutes. You called the engineer ${S.hints} time${S.hints===1?"":"s"}.</p>
+  ${ordRows?`<h3>The supervisor's orders</h3><table class="deb"><tr><th>When</th><th>Order</th><th>You</th><th>The record</th></tr>${ordRows}</table>`:""}
+  ${actRows?`<h3>What you did, and what the board showed</h3><table class="deb"><tr><th>When</th><th>Action</th><th>Readings then</th></tr>${actRows}</table>`:""}
+  <h3>The record</h3><p class="small">The relief valve stuck open. Its lamp showed only that a close signal had been sent. The Kemeny Commission found that operators relied on the lamp, did not heed other indications, and that the loss of coolant continued for over two hours. It tied the core damage to the throttling of high pressure injection.</p>
+  <h3>Take it elsewhere</h3><p class="small">Name one indicator in your own field that reports the command and not the result.</p>
+  ${SOURCES}<button class="go ghost" id="copyBtn">Copy my reasoning summary</button><textarea id="copyTxt" style="position:absolute;left:-9999px">${txt}</textarea>`;
+}
+function endScreen(head){
+  $("end").classList.remove("hide");
+  $("endcard").innerHTML=`<div class="k">Before you see the record</div><h1>How well did you read the board?</h1><div class="rate"><button class="go ghost" data-v="guessed">Mostly guessed</button><button class="go ghost" data-v="mixed">Some of each</button><button class="go ghost" data-v="reasoned">Followed the readings</button></div>`;
+  $("endcard").querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{
+    $("endcard").innerHTML=head+`<p class="small">Your own rating: ${b.textContent.toLowerCase()}.</p>`+debrief()+`<button class="go" onclick="location.reload()">Run it again</button>`;$("endcard").scrollTop=0;
+    $("copyBtn").onclick=()=>{const t=$("copyTxt");t.select();try{navigator.clipboard?navigator.clipboard.writeText(t.value):document.execCommand("copy");$("copyBtn").textContent="Copied"}catch(x){}}});
+}
 function win(){
   S.over=true;
-  $("end").classList.remove("hide");
-  $("endcard").innerHTML=`<div class="k">Plant stable · ${stamp()}</div><h1>Core covered.</h1>
-  <p>You isolated the stuck valve and kept water on the core. The plant was stable ${fmtT()} after the trip.</p>
-  <p class="small">At Three Mile Island the block valve was closed at 6:22 a.m., 2 hours 22 minutes after the trip. By then about half the core had melted. The PORV lamp showed only that a close signal had been sent. Operators had cut high pressure injection because the pressurizer read nearly full, and later shut off the coolant pumps.</p>
-  <button class="go" onclick="location.reload()">Run it again</button>`;
+  endScreen(`<div class="k">Plant stable · ${stamp()}</div><h1>Core covered.</h1>
+  <p>The plant was stable ${fmtT()} after the trip.</p>`);
 }
 function lose(){
   S.over=true;
-  $("end").classList.remove("hide");
-  $("endcard").innerHTML=`<div class="k">Core damage · ${stamp()}</div><h1>The core is uncovered.</h1>
-  <p>Fuel temperatures passed 2,200 °F ${fmtT()} after the trip. The fuel cladding is failing and hydrogen is forming.</p>
-  <p class="small">This is close to what happened at Three Mile Island, where about half the core melted. There, the PORV stuck open while its lamp showed CLOSED, operators cut high pressure injection because the pressurizer read nearly full, and the coolant pumps were shut off. The block valve was closed at 2 hours 22 minutes.</p>
-  <p class="small">Try again: look for evidence that water is leaving the system.</p>
-  <button class="go" onclick="location.reload()">Try again</button>`;
+  endScreen(`<div class="k">Core damage · ${stamp()}</div><h1>The core is uncovered.</h1>
+  <p>Fuel temperatures passed 2,200 °F ${fmtT()} after the trip. The fuel cladding is failing and hydrogen is forming.</p>`);
 }
+$("aboutBtn").onclick=()=>{$("about").classList.remove("hide");$("aboutcard").innerHTML=`<div class="k">About this demo</div><h1>Three Mile Island, 1979</h1>
+<p class="small">A five minute control room simulation for an engineering, physics, human factors or history of technology course. One objective: diagnose a fault from instruments that disagree, and say which reading you trust and why.</p>
+<h3>What is real</h3><p class="small">The sequence of the first minutes: the feedwater trip, the relief valve that opened and stuck, the lamp that showed only the close signal, the closed emergency feedwater valves with a light hidden by a maintenance tag, the throttled injection and the tripped coolant pumps. These follow the Kemeny Commission findings.</p>
+<h3>What is simplified</h3><p class="small">The plant model is a small illustrative model, not an engineering simulation. Time is compressed: one plant minute takes three seconds. Instruments and alarms are modeled on the 1979 control room, not reproduced. The supervisor's words are written for this demo and are not quotations. The 2 hours 22 minutes to close the block valve and the estimate that about half the core melted are widely reported figures that were not rechecked against a primary source for this version.</p>
+<h3>How your thinking is recorded</h3><p class="small">Your diagnosis, the reading you say you are going by, your answers to the supervisor and your actions are kept on this page with the readings at that moment, and shown back at the end. The debrief also reports how long you spent on open decisions, including time paused to think, and how often you revised your diagnosis. Nothing is sent anywhere.</p>
+${SOURCES}<p class="small">Built with Claude for José Antonio Bowen, weteachwithai.com, as a workshop demo. No tracking.</p><button class="go" id="aboutX">Close</button>`;$("aboutX").onclick=()=>$("about").classList.add("hide")};
+dxDraw();
+window.__demo={S,step,render,state:()=>JSON.parse(JSON.stringify({t:S.t,hold:S.hold,dx:S.dx,orders:S.orders,acts:S.acts,hints:S.hints,over:S.over,block:S.block,T:S.T}))};
 })();
 </script>
 </body>
